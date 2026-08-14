@@ -1,0 +1,17 @@
+{
+  "input": "data/normalized/mmlu/test.jsonl",
+  "seed": 42,
+  "output_dir": "data/generated/mmlu-asymmetric-matrix-s42",
+  "operations": [
+    {
+      "name": "asymmetric_label_flip",
+      "rate": 1.0,
+      "transition_matrix": [
+        [0.7, 0.3, 0.0, 0.0],
+        [0.0, 0.7, 0.3, 0.0],
+        [0.0, 0.0, 0.7, 0.3],
+        [0.3, 0.0, 0.0, 0.7]
+      ]
+    }
+  ]
+}

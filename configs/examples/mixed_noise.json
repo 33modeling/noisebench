@@ -1,0 +1,22 @@
+{
+  "input": "data/normalized/mbpp/train.jsonl",
+  "seed": 41,
+  "output_dir": "data/generated/mbpp-mixed-s41",
+  "operations": [
+    {
+      "name": "response_swap",
+      "rate": 0.10
+    },
+    {
+      "name": "random_swap",
+      "rate": 0.10,
+      "alpha": 0.10,
+      "fields": ["input.prompt"]
+    },
+    {
+      "name": "exact_duplicate",
+      "rate": 0.05,
+      "copies": 2
+    }
+  ]
+}

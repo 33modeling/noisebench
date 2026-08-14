@@ -1,0 +1,13 @@
+{
+  "input": "data/normalized/xquad/test.jsonl",
+  "seed": 29,
+  "output_dir": "data/generated/xquad-question-deletion-r15-s29",
+  "operations": [
+    {
+      "name": "random_deletion",
+      "rate": 0.15,
+      "alpha": 0.10,
+      "fields": ["input.question"]
+    }
+  ]
+}

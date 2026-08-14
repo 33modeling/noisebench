@@ -1,0 +1,11 @@
+{
+  "input": "data/normalized/mmlu/test.jsonl",
+  "seed": 42,
+  "output_dir": "data/generated/mmlu-symmetric-r30-s42",
+  "operations": [
+    {
+      "name": "symmetric_label_flip",
+      "rate": 0.30
+    }
+  ]
+}
