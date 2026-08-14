@@ -9,6 +9,7 @@ from typing import Any
 from noisebench.audit import audit_normalized
 from noisebench.catalog import DATASETS, names
 from noisebench.download import download_datasets
+from noisebench.example_report import generate_example_report
 from noisebench.normalize import normalize_datasets
 from noisebench.operators import OPERATOR_INFO
 from noisebench.pipeline import inject_dataset, load_config
@@ -51,6 +52,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     audit = subparsers.add_parser("audit")
     audit.add_argument("--dataset", default="all")
+
+    report = subparsers.add_parser("report-examples")
+    report.add_argument("--output", type=Path, default=Path("docs/NOISE_EXAMPLES_BY_DATASET.md"))
+    report.add_argument("--seed", type=int, default=20260814)
 
     inject = subparsers.add_parser("inject")
     inject.add_argument("--config", type=Path)
@@ -109,6 +114,10 @@ def main(argv: list[str] | None = None) -> None:
         elif args.command == "audit":
             path = audit_normalized(project_root, names(args.dataset))
             print(f"audit report: {path}")
+        elif args.command == "report-examples":
+            output = args.output if args.output.is_absolute() else project_root / args.output
+            path = generate_example_report(project_root, output, args.seed)
+            print(f"example report: {path}")
         elif args.command == "list-datasets":
             for name, info in DATASETS.items():
                 print(f"{name:10} {info.task_type:18} {info.title}")

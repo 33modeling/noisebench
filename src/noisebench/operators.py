@@ -580,13 +580,15 @@ def _synonym_operation(
             i for i, word in enumerate(words) if word.lower().strip(".,!?;:\"'()[]{}") in synonyms
         ]
         count = min(len(positions), max(1, int(alpha * len(words) + 0.5)))
-        chosen = sorted(rng.sample(positions, count), reverse=insert)
-        for position in chosen:
-            key = words[position].lower().strip(".,!?;:\"'()[]{}")
-            synonym = rng.choice(synonyms[key])
-            if insert:
+        chosen = rng.sample(positions, count)
+        chosen_tokens = [words[position].lower().strip(".,!?;:\"'()[]{}") for position in chosen]
+        if insert:
+            for key in chosen_tokens:
+                synonym = rng.choice(synonyms[key])
                 words.insert(rng.randrange(len(words) + 1), synonym)
-            else:
+        else:
+            for position, key in zip(chosen, chosen_tokens, strict=True):
+                synonym = rng.choice(synonyms[key])
                 words[position] = synonym
         changed = " ".join(words)
         _set(record, field, changed)

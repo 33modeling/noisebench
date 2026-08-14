@@ -124,6 +124,29 @@ def test_synonym_replacement_requires_and_uses_map(tmp_path: Path) -> None:
     )
 
 
+def test_random_insertion_handles_multiple_insertions(tmp_path: Path) -> None:
+    records = make_records(2)
+    result = OPERATORS["random_insertion"](
+        records,
+        {
+            "rate": 1.0,
+            "alpha": 1.0,
+            "fields": ["input.question"],
+            "synonyms": {
+                "this": ["that"],
+                "is": ["equals"],
+                "fixture": ["sample"],
+                "question": ["query"],
+                "number": ["index"],
+            },
+        },
+        random.Random(9),
+        context(tmp_path),
+    )
+    assert result["changed"] == 2
+    assert all(len(record["input"]["question"].split()) > 7 for record in records)
+
+
 def test_exact_duplicate_ids_and_counts(tmp_path: Path) -> None:
     records = make_records(10)
     result = OPERATORS["exact_duplicate"](

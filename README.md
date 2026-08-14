@@ -44,6 +44,17 @@ Audit normalized schemas and answer consistency:
 .venv/bin/noisebench audit --dataset all
 ```
 
+Regenerate the three-sample, per-dataset before/after report:
+
+```bash
+.venv/bin/noisebench report-examples \
+  --output docs/NOISE_EXAMPLES_BY_DATASET.md \
+  --seed 20260814
+```
+
+The generated report is checked in at
+[docs/NOISE_EXAMPLES_BY_DATASET.md](docs/NOISE_EXAMPLES_BY_DATASET.md).
+
 ## Generate a noisy dataset
 
 Use a checked configuration:
