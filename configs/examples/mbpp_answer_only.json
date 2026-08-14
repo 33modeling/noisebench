@@ -1,0 +1,17 @@
+{
+  "input": "data/normalized/mbpp/train.jsonl",
+  "seed": 42,
+  "answer_only": true,
+  "output_dir": "data/generated/mbpp-answer-only-s42",
+  "operations": [
+    {
+      "name": "random_deletion",
+      "rate": 0.10,
+      "alpha": 0.15
+    },
+    {
+      "name": "response_swap",
+      "rate": 0.10
+    }
+  ]
+}

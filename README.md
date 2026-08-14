@@ -86,6 +86,24 @@ Additional operator parameters use JSON values:
   --seed 41
 ```
 
+Apply noise only to answers/responses while guaranteeing that prompts and row
+counts remain unchanged:
+
+```bash
+.venv/bin/noisebench inject \
+  --input data/normalized/mbpp/train.jsonl \
+  --operator random_deletion \
+  --rate 0.10 \
+  --param 'alpha=0.15' \
+  --answer-only \
+  --seed 42 \
+  --output-dir data/generated/mbpp-answer-only-s42
+```
+
+Multiple-operation configurations use top-level `"answer_only": true`. See
+[docs/ANSWER_ONLY_MODE.md](docs/ANSWER_ONLY_MODE.md) for allowed operators,
+rejected input/row mutations, and manifest verification fields.
+
 Every run produces:
 
 - `dataset.jsonl`: canonical noisy records.
@@ -122,6 +140,7 @@ paper citations in [references.bib](references.bib).
 {
   "input": "data/normalized/mmlu/test.jsonl",
   "seed": 42,
+  "answer_only": false,
   "output_dir": "data/generated/mmlu-mixed-s42",
   "operations": [
     {"name": "symmetric_label_flip", "rate": 0.10},

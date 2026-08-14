@@ -412,6 +412,25 @@ def truncate_response(
 DEFAULT_INPUT_FIELDS = ["input.question", "input.prompt", "input.instruction", "input.context"]
 
 
+def _configured_text_fields(config: dict[str, Any]) -> tuple[str, list[str]]:
+    scope = str(config.get("scope", "input"))
+    if scope not in {"input", "response"}:
+        raise ValueError("scope must be input or response")
+    default_fields = list(TARGET_FIELDS) if scope == "response" else DEFAULT_INPUT_FIELDS
+    fields = list(config.get("fields") or default_fields)
+    required_prefix = "target." if scope == "response" else "input."
+    invalid = [field for field in fields if not str(field).startswith(required_prefix)]
+    if invalid:
+        raise ValueError(f"scope={scope} does not allow fields: {invalid}")
+    return scope, fields
+
+
+def _set_text_value(record: dict[str, Any], field: str, value: str) -> None:
+    _set(record, field, value)
+    if field == "target.answer" and isinstance(record["target"].get("answers"), list):
+        record["target"]["answers"] = [value]
+
+
 def _text_candidates(records: list[dict[str, Any]], fields: list[str]) -> dict[int, str]:
     result = {}
     for index, record in enumerate(records):
@@ -462,8 +481,14 @@ def _text_operation(
     name: str,
     transform: Callable[[str, float, random.Random], str],
 ) -> dict[str, Any]:
-    fields = list(config.get("fields") or DEFAULT_INPUT_FIELDS)
+    scope, fields = _configured_text_fields(config)
     candidates = _text_candidates(records, fields)
+    if scope == "response":
+        candidates = {
+            index: field
+            for index, field in candidates.items()
+            if records[index].get("task_type") != "multiple_choice"
+        }
     if name == "random_deletion":
         candidates = {
             index: field
@@ -488,13 +513,14 @@ def _text_operation(
         changed = transform(original, alpha, rng)
         if changed == original:
             continue
-        _set(record, field, changed)
+        _set_text_value(record, field, changed)
         changed_count += 1
         detail: dict[str, Any] = {
             "field": field,
             "original": original,
             "new": changed,
             "alpha": alpha,
+            "scope": scope,
         }
         if record.get("task_type") == "extractive_qa":
             detail["answer_offsets_may_be_invalid"] = field == "input.context"
@@ -557,8 +583,14 @@ def _synonym_operation(
     insert: bool,
 ) -> dict[str, Any]:
     synonyms = _load_synonyms(config, context)
-    fields = list(config.get("fields") or DEFAULT_INPUT_FIELDS)
+    scope, fields = _configured_text_fields(config)
     candidates = _text_candidates(records, fields)
+    if scope == "response":
+        candidates = {
+            index: field
+            for index, field in candidates.items()
+            if records[index].get("task_type") != "multiple_choice"
+        }
     eligible = {
         i: field
         for i, field in candidates.items()
@@ -591,13 +623,19 @@ def _synonym_operation(
                 synonym = rng.choice(synonyms[key])
                 words[position] = synonym
         changed = " ".join(words)
-        _set(record, field, changed)
+        _set_text_value(record, field, changed)
         _event(
             record,
             name=name,
             operation_index=context["operation_index"],
             operation_seed=context["operation_seed"],
-            detail={"field": field, "original": original, "new": changed, "alpha": alpha},
+            detail={
+                "field": field,
+                "original": original,
+                "new": changed,
+                "alpha": alpha,
+                "scope": scope,
+            },
         )
     return {"eligible": len(eligible), "selected": len(selected), "changed": len(selected)}
 

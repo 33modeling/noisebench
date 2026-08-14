@@ -11,6 +11,20 @@ from typing import Any
 from noisebench.io import read_jsonl, sha256_file, stable_hash, write_json, write_jsonl
 from noisebench.operators import OPERATORS
 
+ANSWER_ONLY_TEXT_OPERATORS = {
+    "random_deletion",
+    "random_swap",
+    "synonym_replacement",
+    "random_insertion",
+}
+ANSWER_ONLY_NATIVE_OPERATORS = {
+    "symmetric_label_flip",
+    "asymmetric_label_flip",
+    "response_swap",
+    "wrong_answer",
+    "truncate_response",
+}
+
 
 def _operation_seed(run_seed: int, operation_index: int) -> int:
     digest = hashlib.sha256(f"{run_seed}:{operation_index}".encode("ascii")).digest()
@@ -25,6 +39,8 @@ def _resolve(project_root: Path, value: str | Path) -> Path:
 def _validate_config(config: dict[str, Any]) -> None:
     if not config.get("input"):
         raise ValueError("config requires input")
+    if "answer_only" in config and not isinstance(config["answer_only"], bool):
+        raise TypeError("answer_only must be a boolean")
     if not isinstance(config.get("operations"), list) or not config["operations"]:
         raise ValueError("config requires a non-empty operations list")
     for index, operation in enumerate(config["operations"]):
@@ -38,6 +54,27 @@ def _validate_config(config: dict[str, Any]) -> None:
             raise ValueError(f"operation {index} rate must be in [0, 1]")
 
 
+def _effective_config(config: dict[str, Any]) -> dict[str, Any]:
+    effective = copy.deepcopy(config)
+    if not bool(effective.get("answer_only", False)):
+        return effective
+    for index, operation in enumerate(effective["operations"]):
+        name = operation.get("name")
+        if name in ANSWER_ONLY_TEXT_OPERATORS:
+            if operation.get("scope") not in {None, "response"}:
+                raise ValueError(
+                    f"answer_only operation {index} cannot use scope={operation.get('scope')!r}"
+                )
+            fields = operation.get("fields") or []
+            invalid = [field for field in fields if not str(field).startswith("target.")]
+            if invalid:
+                raise ValueError(f"answer_only operation {index} has input fields: {invalid}")
+            operation["scope"] = "response"
+        elif name not in ANSWER_ONLY_NATIVE_OPERATORS:
+            raise ValueError(f"operator {name!r} is not allowed when answer_only=true")
+    return effective
+
+
 def inject_dataset(
     *,
     project_root: Path,
@@ -46,29 +83,34 @@ def inject_dataset(
     output_override: Path | None = None,
 ) -> Path:
     _validate_config(config)
-    input_path = _resolve(project_root, config["input"])
+    effective_config = _effective_config(config)
+    _validate_config(effective_config)
+    answer_only = bool(effective_config.get("answer_only", False))
+    input_path = _resolve(project_root, effective_config["input"])
     if not input_path.exists():
         raise FileNotFoundError(f"normalized input does not exist: {input_path}")
 
     input_sha = sha256_file(input_path)
-    seed = int(config.get("seed", 0))
+    seed = int(effective_config.get("seed", 0))
     run_identity = {
         "schema_version": 1,
         "input_sha256": input_sha,
         "seed": seed,
-        "operations": config["operations"],
+        "answer_only": answer_only,
+        "operations": effective_config["operations"],
     }
     run_id = stable_hash(run_identity)
-    configured_output = config.get("output_dir") or f"data/generated/run-{run_id}"
+    configured_output = effective_config.get("output_dir") or f"data/generated/run-{run_id}"
     output_dir = output_override or _resolve(project_root, configured_output)
     output_dir.mkdir(parents=True, exist_ok=True)
 
     records = [copy.deepcopy(record) for record in read_jsonl(input_path)]
     input_count = len(records)
+    original_inputs = {record["id"]: copy.deepcopy(record["input"]) for record in records}
     operation_results = []
     config_dir = config_path.parent if config_path else project_root
 
-    for operation_index, operation in enumerate(config["operations"]):
+    for operation_index, operation in enumerate(effective_config["operations"]):
         name = operation["name"]
         op_seed = _operation_seed(seed, operation_index)
         rng = random.Random(op_seed)
@@ -95,6 +137,19 @@ def inject_dataset(
     duplicate_ids = [record_id for record_id, count in Counter(ids).items() if count > 1]
     if duplicate_ids:
         raise ValueError(f"operators produced duplicate IDs: {duplicate_ids[:3]}")
+    answer_only_verification = None
+    if answer_only:
+        row_count_unchanged = len(records) == input_count
+        input_unchanged = row_count_unchanged and all(
+            record["id"] in original_inputs and record["input"] == original_inputs[record["id"]]
+            for record in records
+        )
+        if not row_count_unchanged or not input_unchanged:
+            raise RuntimeError("answer_only invariant failed: input or row count changed")
+        answer_only_verification = {
+            "input_unchanged": True,
+            "row_count_unchanged": True,
+        }
 
     output_path = output_dir / "dataset.jsonl"
     output_count = write_jsonl(output_path, records)
@@ -121,11 +176,15 @@ def inject_dataset(
             "unchanged_records": output_count - changed_records,
         },
         "seed": seed,
+        "answer_only": answer_only,
+        "answer_only_verification": answer_only_verification,
         "operations": operation_results,
         "operation_application_counts": dict(sorted(operation_application_counts.items())),
         "event_counts": dict(sorted(event_counts.items())),
-        "config": config,
+        "config": effective_config,
     }
+    if effective_config != config:
+        manifest["requested_config"] = config
     write_json(output_dir / "manifest.json", manifest)
     _write_summary(output_dir / "summary.md", manifest)
     return output_dir
@@ -140,6 +199,7 @@ def _write_summary(path: Path, manifest: dict[str, Any]) -> None:
         f"- Output records: {manifest['output']['records']}",
         f"- Changed output records: {manifest['output']['changed_records']}",
         f"- Seed: {manifest['seed']}",
+        f"- Answer-only mode: {manifest.get('answer_only', False)}",
         f"- Input SHA-256: `{manifest['input']['sha256']}`",
         f"- Output SHA-256: `{manifest['output']['sha256']}`",
         "",

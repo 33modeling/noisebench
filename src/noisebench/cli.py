@@ -63,6 +63,11 @@ def build_parser() -> argparse.ArgumentParser:
     inject.add_argument("--operator", choices=sorted(OPERATOR_INFO))
     inject.add_argument("--rate", type=float, default=0.0)
     inject.add_argument("--seed", type=int, default=0)
+    inject.add_argument(
+        "--answer-only",
+        action="store_true",
+        help="guarantee that only target answers/responses can change",
+    )
     inject.add_argument("--param", action="append", default=[], type=_parse_param)
     inject.add_argument("--output-dir", type=Path)
 
@@ -81,7 +86,12 @@ def _direct_config(args: argparse.Namespace, project_root: Path) -> dict[str, An
         input_value = str(input_path.resolve().relative_to(project_root))
     except ValueError:
         input_value = str(input_path.resolve())
-    return {"input": input_value, "seed": args.seed, "operations": [operation]}
+    return {
+        "input": input_value,
+        "seed": args.seed,
+        "answer_only": args.answer_only,
+        "operations": [operation],
+    }
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -101,6 +111,8 @@ def main(argv: list[str] | None = None) -> None:
             if args.config:
                 config_path = args.config.resolve()
                 config = load_config(config_path)
+                if args.answer_only:
+                    config["answer_only"] = True
             else:
                 config_path = None
                 config = _direct_config(args, project_root)

@@ -10,6 +10,19 @@
 - Clean source values remain in `source.raw`; pre-operation values are also saved
   in the appended noise event.
 
+## Answer-only mode
+
+Top-level `answer_only: true` guarantees that operations modify only `target`
+fields. Text perturbations are automatically routed to `scope: "response"` and
+therefore use `target.code`, `target.answer`, `target.text`, or `target.equation`
+instead of input fields. After all operations, the pipeline verifies that every
+record's `input` and the total row count are unchanged.
+
+Label flips, response swaps, wrong answers, truncation, and the four EDA text
+operations are allowed. Trigger poisoning and exact/near duplication are rejected
+because they modify input or row structure. Explicit `input.*` fields are also
+rejected. See [ANSWER_ONLY_MODE.md](ANSWER_ONLY_MODE.md).
+
 ## Operators
 
 ### symmetric_label_flip
@@ -61,6 +74,7 @@ deleted so every selected record changes. Texts with fewer than two whitespace
 tokens are ineligible. It applies to the first existing configured field.
 
 Parameters: `rate`, `alpha` (default 0.1), `fields`.
+Set `scope: "response"` to delete words only from an answer or code response.
 
 ### random_swap
 
@@ -69,6 +83,7 @@ Texts with fewer than two distinct whitespace tokens are ineligible, and the
 implementation guarantees that every selected record changes.
 
 Parameters: `rate`, `alpha` (default 0.1), `fields`.
+Set `scope: "response"` to reorder words only in the response.
 
 ### synonym_replacement / random_insertion
 
@@ -77,6 +92,7 @@ Replacement modifies up to `max(1, round(alpha * token_count))` eligible tokens;
 insertion adds the same number of synonyms at random positions.
 
 Parameters: `rate`, `alpha`, `fields`, `synonyms_file`.
+Set `scope: "response"` to constrain synonym edits to the response.
 
 ### exact_duplicate
 
